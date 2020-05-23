@@ -91,8 +91,8 @@ int main(const int argc, const char *argv[]) {
     if (err)
         return err;
 
-    nameTable.dump();
-    langTree.dump();
+//    nameTable.dump();
+//    langTree.dump();
 
     err = getAsm(langTree, asmFile);
     if (err)
