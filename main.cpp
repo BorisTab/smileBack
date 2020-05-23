@@ -118,6 +118,7 @@ int getAsm(tree::Tree <char *> &langTree, FILE *asmFile) {
         Asm::          FileHead(asmFile);
         Asm::          Include(asmFile, "terminalLib/printf.asm");
         Asm::          Include(asmFile, "terminalLib/scanf.asm");
+        Asm::          Include(asmFile, "terminalLib/sqrt.asm");
         Asm::segments::SegmentRE(asmFile);
 
         Asm::          Label(asmFile, "start");
@@ -141,14 +142,10 @@ int getDeclaration(tree::Node <char *> *node, FILE *asmFile, bool setTable) {
     if (node->leftChild && !strcmp(node->leftChild->value, operations[1]))
         getDeclaration(node->leftChild, asmFile, setTable);
 
-    if (node->rightChild) {
-        if (!strcmp(node->rightChild->value, operations[2]))
-            getFunction(node->rightChild, asmFile, setTable);
 
-//        else if (!strcmp(node->rightChild->value, operations[3])) getInitialize(node->rightChild, asmFile, );
-
-        else return PARSING_ERROR;
-    } else return PARSING_ERROR;
+    if (node->rightChild && !strcmp(node->rightChild->value, operations[2]))
+        getFunction(node->rightChild, asmFile, setTable);
+    else return PARSING_ERROR;
 }
 
 int getFunction(tree::Node<char *> *node, FILE *asmFile, bool setTable) {
@@ -306,7 +303,7 @@ int getCallArgs(tree::Node<char *> *node, FILE *asmFile, int funcId, int *varCou
 }
 
 int getExpression(tree::Node<char *> *node, FILE *asmFile, int funcId, int *varCount) {
-    if (isdigit(*node->value))
+    if (isdigit(*node->value) || *node->value == '-')
         Asm::commands::Mov(asmFile, Asm::registers::rax, node->value);
 
     else if (!strcmp(node->value, operations[14])) {
@@ -331,21 +328,29 @@ int getExpression(tree::Node<char *> *node, FILE *asmFile, int funcId, int *varC
     }
 
     else if (!strcmp(node->value, operations[21])) {
-        expressionPrint(node, asmFile, funcId, varCount);
-        Asm::math::Idiv(asmFile,Asm::registers::rax, Asm::registers::rax, Asm::registers::rdx);
+        getExpression(node->rightChild, asmFile, funcId, varCount);
+        Asm::stack::Push(asmFile, Asm::registers::rax);
+        getExpression(node->leftChild, asmFile, funcId, varCount);
+
+        Asm::stack::   Pop(asmFile, Asm::registers::rcx);
+        Asm::commands::Mov(asmFile, Asm::registers::rdx, Asm::registers::rax);
+        Asm::binary::  Shr(asmFile, Asm::registers::rdx, 32);
+        Asm::math::    Idiv(asmFile, Asm::registers::ecx);
+        Asm::commands::Cdqe(asmFile);
+    }
+
+    else if (!strcmp(node->value, operations[22])) {
+        getExpression(node->rightChild, asmFile, funcId, varCount);
+
+        Asm::stack::   Push(asmFile, Asm::registers::rax);
+        Asm::commands::Call(asmFile, "sqrt");
+        Asm::math::Add(asmFile, Asm::registers::rsp, "8");
     }
 
     else if (isalpha(*node->value)) {
         int varId = nameTable.findFrom(funcId, node->value);
         Asm::commands::Mov(asmFile, Asm::registers::rax, Asm::PtrExpression(Asm::registers::rbp, '-', Asm::stack::ceil * varId));
     }
-
-    // TODO: sqrt
-//    else if (!strcmp(node->value, operations[18])) {
-//        getExpression(node->rightChild, asmFile, funcId, varCount);
-//
-//        fprintf(asmFile, "sqrt\n");
-//    }
 }
 
 void expressionPrint(tree::Node<char *> *node, FILE *asmFile, int funcId, int *varCount) {
@@ -375,32 +380,37 @@ int getOutput(tree::Node<char *> *node, FILE *asmFile, int funcId, int *varCount
 
 int getIf(tree::Node<char *> *node, FILE *asmFile, int funcId, int *varCount, bool setTable) {
     int cond = 0;
+    int elseLabel = implicitLabels + 1;
+    int skipLabel = implicitLabels + 2;
+    implicitLabels += 2;
 
     if (!setTable && node->leftChild)
         cond = getCond(node->leftChild, asmFile, funcId, varCount);
 
     if (!setTable && node->rightChild->leftChild) {
-        implicitLabels += 2;
-        Asm::jumps::JCond(asmFile, Asm::ImplicitLabel(implicitLabels - 1), cond);
+//        implicitLabels += 1;
+        Asm::jumps::JCond(asmFile, Asm::ImplicitLabel(elseLabel), cond);
     } else if (!setTable) {
-        ++implicitLabels;
-        Asm::jumps::JCond(asmFile, Asm::ImplicitLabel(implicitLabels), cond);
+//        ++implicitLabels;
+        Asm::jumps::JCond(asmFile, Asm::ImplicitLabel(skipLabel), cond);
     }
 
     if (node->rightChild->rightChild) {
         getBlock(node->rightChild->rightChild, asmFile, funcId, varCount, setTable);
-        if (!setTable && node->rightChild->leftChild)
-            Asm::jumps::Jmp(asmFile, Asm::ImplicitLabel(implicitLabels));
+        if (!setTable && node->rightChild->leftChild) {
+//            implicitLabels += 1;
+            Asm::jumps::Jmp(asmFile, Asm::ImplicitLabel(skipLabel));
+        }
     }
 
     if (node->rightChild->leftChild) {
         if (!setTable)
-            Asm::ImplicitLabelInit(asmFile, implicitLabels - 1);
+            Asm::ImplicitLabelInit(asmFile, elseLabel);
         getBlock(node->rightChild->leftChild, asmFile, funcId, varCount, setTable);
     }
 
     if (!setTable)
-        Asm::ImplicitLabelInit(asmFile, implicitLabels);
+        Asm::ImplicitLabelInit(asmFile, skipLabel);
 }
 
 int getWhile(tree::Node<char *> *node, FILE *asmFile, int funcId, int *varCount, bool setTable) {

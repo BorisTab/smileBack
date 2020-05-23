@@ -40,10 +40,14 @@ namespace Asm {
         char rax[] = "rax";
         char rbx[] = "rbx";
         char rdx[] = "rdx";
+        char rcx[] = "rcx";
         char r0[] = "r0";
 
         char eax[] = "eax";
         char edx[] = "edx";
+        char ecx[] = "ecx";
+
+        char dx[] = "dx";
 
         char rbp[] = "rbp";
         char rsp[] = "rsp";
@@ -62,6 +66,9 @@ namespace Asm {
             fprintf(asmFile, "    call        %s\n", arg1);
         }
 
+        void Cdqe(FILE *asmFile) {
+            fprintf(asmFile, "    cdqe\n");
+        }
 
         void Ret(FILE *asmFile) {
             fprintf(asmFile, "    ret\n");
@@ -75,6 +82,10 @@ namespace Asm {
     namespace binary {
         void Xor(FILE *asmFile, const char *arg1, const char *arg2) {
             fprintf(asmFile, "    xor         %s, %s\n", arg1, arg2);
+        }
+
+        void Shr(FILE *asmFile, const char *arg1, const int arg2) {
+            fprintf(asmFile, "    shr         %s, %d\n", arg1, arg2);
         }
     }
 
@@ -91,8 +102,8 @@ namespace Asm {
             fprintf(asmFile, "    imul        %s, %s\n", arg1, arg2);
         }
 
-        void Idiv(FILE *asmFile, const char *dest, const char *arg1, const char *arg2) {
-            fprintf(asmFile, "    idiv        %s, %s, %s\n", dest, arg1, arg2);
+        void Idiv(FILE *asmFile, const char *arg1) {
+            fprintf(asmFile, "    idiv        %s\n", arg1);
         }
     }
 
